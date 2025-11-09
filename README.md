@@ -49,6 +49,8 @@ Nothing is set in stone, this is currently defining my "pipe dream."
         which may be better for the 
     - React: More heavy, but component centered features with near unlimited
         customization and component options to choose from.
+    - jsep: javascript module that parses expressions. Could be used to render
+        live data on the frontend.
 - Backend Tools
     - Golang: Easy to develop and debug, though initial development time is
         typically longer. Focus on code readabilty and libraries such as
