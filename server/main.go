@@ -1,5 +1,7 @@
 package main
 
+// TODO: set up tests for the web server and database
+
 import (
 	"net/http"
 	"time"
@@ -22,9 +24,9 @@ type NewSchemaRequest struct {
 }
 
 type NewInstanceRequest struct {
-	Name string `json:"name"`
+	Name        string `json:"name"`
 	Description string `json:"description"`
-	SchemaID string `json:"schema_id"`
+	SchemaID    string `json:"schema_id"`
 }
 
 func main() {
@@ -33,21 +35,45 @@ func main() {
 	router := echo.New()
 	router.Use(middleware.Logger())
 	router.Use(middleware.Recover())
+	router.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{http.MethodGet, http.MethodPost},
+	}))
 
-	router.POST("/:user/schemas/new", func(c echo.Context) error {
+	u := router.Group("/:user")
+	schemas := u.Group("/schemas")
+	instances := u.Group("/instances")
+
+	schemas.GET("/:id", func(c echo.Context) error {
+		user := c.Param("user")
+		id := c.Param("id")
+
+		var schema lib.Schema
+		err := db.Get(CollectionSchemas, user, id, &schema)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+		}
+
+		return c.JSON(http.StatusOK, schema)
+	})
+
+	schemas.POST("/new", func(c echo.Context) error {
 		user := c.Param("user")
 
 		var req NewSchemaRequest
 
+		// TODO: fix issues with USER and ID vs invalid JSON
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "invalid JSON",
+				"error": err.Error(),
 			})
 		}
 
-		instanceID := uuid.New().String()
+		schemaID := uuid.New().String()
 		schema := lib.Schema{
-			ID:          instanceID,
+			ID:          schemaID,
 			Version:     1,
 			UserVersion: 1,
 			Name:        req.Name,
@@ -56,81 +82,38 @@ func main() {
 			UpdatedAt:   time.Now(),
 		}
 
-		err := db.Set(CollectionInstances, user, instanceID, schema)
+		err := db.Set(CollectionSchemas, user, schemaID, schema)
 		if err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "invalid schema",
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": err.Error(),
 			})
 		}
 
 		return c.JSON(http.StatusOK, schema)
 	})
 
-	router.POST("/:user/instances/new", func(c echo.Context) error {
-		user := c.Param("user")
-
-		var req NewInstanceRequest
-		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "invalid JSON",
-			})
-		}
-
-		var schema lib.Schema
-		err := db.Get(CollectionSchemas, user, req.SchemaID, &schema)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "invalid schema",
-			})
-		}
-
-		instanceID := uuid.New().String()
-		instance := lib.Instance{
-			ID: instanceID,
-			SchemaID: req.SchemaID,
-			Name: req.Name,
-			Description: req.Description,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-
-		return c.JSON(http.StatusOK, instance)
-		
-	})
-
-	router.POST("/:user/instances/save", func(c echo.Context) error {
-		user := c.Param("user")
-
-		var req lib.Instance
-
-		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "invalid JSON",
-			})
-		}
-
-		db.Set(CollectionInstances, user, req.ID, req)
-
-		return c.String(http.StatusOK, "instance saved")
-	})
-
-	router.POST("/:user/schemas/save", func(c echo.Context) error {
+	schemas.POST("/save", func(c echo.Context) error {
 		user := c.Param("user")
 
 		var req lib.Schema
 
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "invalid JSON",
+				"error": err.Error(),
 			})
 		}
 
-		db.Set(CollectionSchemas, user, req.ID, req)
+		err := db.Set(CollectionSchemas, user, req.ID, req)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": err.Error(),
+			})
+		}
 
 		return c.String(http.StatusOK, "schema saved")
 	})
 
-	router.GET("/:user/schemas", func(c echo.Context) error {
+	schemas.GET("", func(c echo.Context) error {
 		user := c.Param("user")
 
 		schemaIDs, err := db.List(CollectionSchemas, user)
@@ -140,40 +123,101 @@ func main() {
 			})
 		}
 
-		schemas := []lib.Schema{}
-		for _, id := range schemaIDs {
-			var schema lib.Schema
-			if err := db.Get(CollectionSchemas, user, id, &schema); err != nil {
-				continue
-			}
-			schemas = append(schemas, schema)
-		}
-
-		return c.JSON(http.StatusOK, schemas)
+		return c.JSON(http.StatusOK, schemaIDs)
 	})
 
-	router.GET("/:user/instances", func(c echo.Context) error {
+	instances.GET("/:id", func(c echo.Context) error {
+		user := c.Param("user")
+		id := c.Param("id")
+
+		var instance lib.Instance
+		err := db.Get(CollectionInstances, user, id, &instance)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+		}
+
+		return c.JSON(http.StatusOK, instance)
+	})
+
+	instances.POST("/new", func(c echo.Context) error {
 		user := c.Param("user")
 
-		instanceIDs, err := db.List("instances", user)
+		var req NewInstanceRequest
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": err.Error(),
+			})
+		}
+
+		var schema lib.Schema
+		err := db.Get(CollectionSchemas, user, req.SchemaID, &schema)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+		}
+
+		instanceID := uuid.New().String()
+		instance := lib.Instance{
+			ID:          instanceID,
+			SchemaID:    req.SchemaID,
+			Name:        req.Name,
+			Description: req.Description,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+
+		err = db.Set(CollectionInstances, user, instanceID, instance)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": err.Error(),
 			})
 		}
 
-		instances := []lib.Instance{}
-		for _, id := range instanceIDs {
-			var instance lib.Instance
-			if err := db.Get(CollectionInstances, user, id, &instance); err != nil {
-				continue
-			}
-			instances = append(instances, instance)
+		return c.JSON(http.StatusOK, instance)
+	})
+
+	instances.POST("/save", func(c echo.Context) error {
+		user := c.Param("user")
+
+		var req lib.Instance
+
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": err.Error(),
+			})
 		}
 
-		return c.JSON(http.StatusOK, instances)
+		err := db.Set(CollectionInstances, user, req.ID, req)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": err.Error(),
+			})
+		}
+
+		return c.String(http.StatusOK, "instance saved")
+	})
+
+	instances.GET("", func(c echo.Context) error {
+		user := c.Param("user")
+
+		instanceIDs, err := db.List(CollectionInstances, user)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": err.Error(),
+			})
+		}
+
+		return c.JSON(http.StatusOK, instanceIDs)
 	})
 
 	// run server with error checking
-	router.Logger.Fatal(router.Start(":5497"))
+	router.Logger.Fatal(router.Start(":5499"))
+}
+
+// TODO: Use this function to make code nice to look at
+func httpError(c echo.Context, code int, err error) error {
+	return c.JSON(code, echo.Map{"error": err.Error()})
 }

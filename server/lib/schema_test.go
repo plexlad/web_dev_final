@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// TODO: Design better tests that check both valid and marks any other value
+// as invalid
+
 func TestSchemaJSONSerialization(t *testing.T) {
 	schema := Schema{
 		ID:          "schema-123",
