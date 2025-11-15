@@ -1,47 +1,67 @@
+<!-- src/App.svelte -->
 <script lang="ts">
-  import svelteLogo from './assets/svelte.svg'
-  import viteLogo from '/vite.svg'
-  import Counter from './lib/Counter.svelte'
+  import { currentUser } from './stores/userStore';
+  import UserLogin from './components/UserLogin.svelte';
+  import SchemaList from './components/SchemaList.svelte';
+  import InstanceList from './components/InstanceList.svelte';
 </script>
 
 <main>
-  <div>
-    <a href="https://vite.dev" target="_blank" rel="noreferrer">
-      <img src={viteLogo} class="logo" alt="Vite Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank" rel="noreferrer">
-      <img src={svelteLogo} class="logo svelte" alt="Svelte Logo" />
-    </a>
-  </div>
-  <h1>Vite + Svelte</h1>
+  <header>
+    <h1>gardi</h1>
+    <UserLogin />
+  </header>
 
-  <div class="card">
-    <Counter />
-  </div>
-
-  <p>
-    Check out <a href="https://github.com/sveltejs/kit#readme" target="_blank" rel="noreferrer">SvelteKit</a>, the official Svelte app framework powered by Vite!
-  </p>
-
-  <p class="read-the-docs">
-    Click on the Vite and Svelte logos to learn more
-  </p>
+  {#if $currentUser}
+    <div class="content">
+      <section>
+        <h2>Schemas</h2>
+        <SchemaList user={$currentUser} />
+      </section>
+      
+      <section>
+        <h2>Instances</h2>
+        <InstanceList user={$currentUser} />
+      </section>
+    </div>
+  {:else}
+    <div class="welcome">
+      <p>Please enter your username to continue</p>
+    </div>
+  {/if}
 </main>
 
 <style>
-  .logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
-    transition: filter 300ms;
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
   }
-  .logo:hover {
-    filter: drop-shadow(0 0 2em #646cffaa);
+  
+  header {
+    margin-bottom: 2rem;
   }
-  .logo.svelte:hover {
-    filter: drop-shadow(0 0 2em #ff3e00aa);
+  
+  h1 {
+    text-align: center;
+    color: #333;
   }
-  .read-the-docs {
-    color: #888;
+  
+  .content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+  
+  section {
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+  }
+  
+  .welcome {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
   }
 </style>
